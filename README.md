@@ -66,6 +66,38 @@ Make sure the following are installed on your system:
 ```bash
 # Ubuntu / Debian
 sudo apt-get install flex bison gcc
+
+## 💬 Supported Query Patterns
+ 
+| Natural Language | MongoDB Query |
+|---|---|
+| `find all users` | `db.users.find({})` |
+| `find all users where age greater than 25` | `db.users.find({ "age": { "$gt": 25 } })` |
+| `find all products where price less than 100` | `db.products.find({ "price": { "$lt": 100 } })` |
+| `find all orders where status equals delivered` | `db.orders.find({ "status": "delivered" })` |
+ 
+> **Note:** Supported keywords typically include `find`, `where`, `equals`, `greater than`, `less than`, `and`, `or`. Refer to the grammar file in `/compiler` for the full list.
+ 
+---
+ 
+## 📁 Key Files
+ 
+| File | Description |
+|---|---|
+| `compiler/lexer.l` | Flex rules for tokenizing natural language input |
+| `compiler/parser.y` | Bison grammar for parsing tokens into MongoDB queries |
+| `server/index.js` | Express server that bridges frontend and compiler |
+| `mfrontend/src/App.js` | Main React component for the UI |
+ 
+---
+ 
+## 🐛 Troubleshooting
+ 
+- **`flex: command not found`** — Install Flex using your package manager (see Prerequisites).
+- **Compiler build fails** — Ensure GCC is installed and all `.l` / `.y` files are present in `/compiler`.
+- **CORS errors on frontend** — Make sure the backend server is running on port 5000 before starting the frontend.
+- **Port conflict** — Update the port in `server/index.js` and update the API URL in the frontend accordingly.
+---
  
 # macOS (via Homebrew)
 brew install flex bison gcc
