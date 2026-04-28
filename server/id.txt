@@ -1,0 +1,129 @@
+// Endpoint to create a database table
+// app.post('/create-database', (req, res) => {
+//   const { tableName, columns } = req.body;
+//   if (!tableName || !columns || !Array.isArray(columns) || columns.length === 0) {
+//     return res.status(400).send('Table name and at least one column are required');
+//   }
+
+//   try {
+//     const columnDefs = columns.map(col => `${col.name} ${col.type}`).join(', ');
+//     const sql = `CREATE TABLE IF NOT EXISTS ${tableName} (${columnDefs})`;
+//     db.exec(sql);
+//     res.send({ message: `Table ${tableName} created successfully` });
+//   } catch (err) {
+//     console.error('Error creating table:', err);
+//     res.status(400).send(`Error creating table: ${err.message}`);
+//   }
+// });
+
+// // Endpoint to list all databases (tables)
+// app.get('/databases', (req, res) => {
+//   try {
+//     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'query_history'").all();
+//     const databases = tables.map(table => {
+//       let lastEdit = 'N/A';
+//       try {
+//         db.prepare(`SELECT 1 FROM pragma_table_info('${table.name}') WHERE name='generated_at'`).get();
+//         const editTime = db.prepare(`SELECT MAX(generated_at) as lastEdit FROM ${table.name}`).pluck().get();
+//         lastEdit = editTime || 'N/A';
+//       } catch (e) {
+//         // Ignore if generated_at doesn't exist
+//       }
+//       return { id: table.name, name: table.name, lastEdit };
+//     });
+//     res.send(databases);
+//   } catch (err) {
+//     console.error('Error fetching databases:', err);
+//     res.status(400).send(`Error fetching databases: ${err.message}`);
+//   }
+// });
+
+// // Endpoint to view table data
+// app.get('/view-table/:tableName', (req, res) => {
+//   const { tableName } = req.params;
+//   try {
+//     const result = db.prepare(`SELECT * FROM ${tableName}`).all();
+//     res.send({ tableName, data: result });
+//   } catch (err) {
+//     console.error('Error fetching table data:', err);
+//     res.status(400).send(`Error fetching table data: ${err.message}`);
+//   }
+// });
+
+// // Endpoint to edit table structure and data
+// app.post('/edit-table/:tableName', (req, res) => {
+//   const { tableName } = req.params;
+//   const { action, columnName, columnType, rowData, rowId, columnsToKeep } = req.body;
+
+//   try {
+//     if (action === 'addColumn') {
+//       const sql = `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`;
+//       db.exec(sql);
+//       res.send({ message: `Added column ${columnName} to ${tableName}` });
+//     } else if (action === 'addRow') {
+//       const columnsInfo = db.prepare(`PRAGMA table_info(${tableName})`).all();
+//       const existingColumns = columnsInfo.map(col => col.name);
+
+//       if (existingColumns.length === 0 && rowData && Object.keys(rowData).length > 0) {
+//         // Handle empty table with column definitions from rowData
+//         const columns = Object.keys(rowData).map(col => `${col} TEXT`).join(', '); // Default to TEXT type for simplicity
+//         db.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (${columns})`);
+//         const validColumns = Object.keys(rowData);
+//         const placeholders = validColumns.map(() => '?').join(', ');
+//         const values = validColumns.map(col => rowData[col]);
+//         const sql = `INSERT INTO ${tableName} (${validColumns.join(', ')}) VALUES (${placeholders})`;
+//         db.prepare(sql).run(...values);
+//       } else {
+//         // Handle non-empty table
+//         const validColumns = Object.keys(rowData).filter(col => existingColumns.includes(col));
+//         if (validColumns.length === 0) return res.status(400).send('No valid columns provided');
+//         const columns = validColumns.join(', ');
+//         const placeholders = validColumns.map(() => '?').join(', ');
+//         const values = validColumns.map(col => rowData[col]);
+//         const sql = `INSERT INTO ${tableName} (${columns}) VALUES (${placeholders})`;
+//         db.prepare(sql).run(...values);
+//       }
+//       res.send({ message: `Added row to ${tableName}` });
+//     } else if (action === 'deleteRow') {
+//       const columnsInfo = db.prepare(`PRAGMA table_info(${tableName})`).all();
+//       if (!columnsInfo.some(col => col.name === 'id' && col.pk)) {
+//         return res.status(400).send('Table must have an id column as primary key for deletion');
+//       }
+//       const existingRow = db.prepare(`SELECT id FROM ${tableName} WHERE id = ?`).get(rowId);
+//       if (!existingRow) {
+//         return res.status(400).send(`No row with id ${rowId} found`);
+//       }
+//       const sql = `DELETE FROM ${tableName} WHERE id = ?`;
+//       db.prepare(sql).run(rowId);
+//       res.send({ message: `Deleted row with id ${rowId} from ${tableName}` });
+//     } else if (action === 'deleteColumn') {
+//       const columnsInfo = db.prepare(`PRAGMA table_info(${tableName})`).all();
+//       const existingColumns = columnsInfo.map(col => col.name);
+//       if (!columnsToKeep || columnsToKeep.length === 0) {
+//         return res.status(400).send('At least one column must be selected to keep');
+//       }
+//       const invalidColumns = columnsToKeep.filter(col => !existingColumns.includes(col));
+//       if (invalidColumns.length > 0) {
+//         return res.status(400).send(`Invalid columns selected: ${invalidColumns.join(', ')}`);
+//       }
+
+//       const originalData = db.prepare(`SELECT * FROM ${tableName}`).all();
+//       const newColumns = columnsToKeep.map(col => `${col} ${columnsInfo.find(c => c.name === col).type}`).join(', ');
+//       db.exec(`CREATE TABLE ${tableName}_temp (${newColumns})`);
+
+//       const columnsStr = columnsToKeep.join(', ');
+//       const insertSql = `INSERT INTO ${tableName}_temp (${columnsStr}) SELECT ${columnsStr} FROM ${tableName}`;
+//       db.exec(insertSql);
+
+//       db.exec(`DROP TABLE ${tableName}`);
+//       db.exec(`ALTER TABLE ${tableName}_temp RENAME TO ${tableName}`);
+
+//       res.send({ message: `Deleted columns ${existingColumns.filter(col => !columnsToKeep.includes(col)).join(', ')} from ${tableName}` });
+//     } else {
+//       res.status(400).send('Unsupported action');
+//     }
+//   } catch (err) {
+//     console.error('Error editing table:', err);
+//     res.status(400).send(`Error editing table: ${err.message}`);
+//   }
+// });
