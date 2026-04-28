@@ -8,7 +8,7 @@
  
 This project bridges the gap between non-technical users and MongoDB databases. Instead of writing complex query syntax, users type natural language sentences like:
  
-> *"Find all users where age is greater than 25"*
+> *"show all from users find age is greater than 25"*
  
 ...and the system automatically converts it into a valid MongoDB query:
  
